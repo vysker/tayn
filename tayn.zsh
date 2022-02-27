@@ -6,31 +6,41 @@ function tayn_print_help {
     echo "\nUsage: tayn [command] [arguments]"
     echo "\nErgonomic container manager\n"
     echo "Command|Description|Usage
-  p|List all containers|'tayn p'
-  r|Restart one or more containers|'tayn r 1' or 'tayn r 3 2 1'
-  s|Stop one or more containers|'tayn s 3' or 'tayn s 1 3'
-  d|Delete one or more containers|'tayn d 7' or 'tayn d 4 5'
-  e|Run interactive command in container|'tayn e 2 sh' for a shell session
-  x|Run detached command in container|'tayn x 2 touch /tmp/abc'
-  l|Show logs for container|'tayn l 5'
-  i|List images|'tayn i'
+  p, ps|List all containers|'tayn p'
+  r, restart|Restart one or more containers|'tayn r 1' or 'tayn r 3 2 1'
+  s, stop|Stop one or more containers|'tayn s 3' or 'tayn s 1 3'
+  d, delete|Delete one or more containers|'tayn d 7' or 'tayn d 4 5'
+  e, session|Run interactive command in container|'tayn e 2 sh'
+  x, exec|Run detached command in container|'tayn x 2 touch /tmp/abc'
+  l, logs|Show logs for container|'tayn l 5'
+  i, image|List images|'tayn i'
     " | column --table -s "|"
     echo "\nExamples"
     echo "  'tayn s 1 2 5' stops 1st, 2nd and 5th docker container listed in 'tayn p'"
 }
 
-function tayn_get_id {
+function tayn_get_runtime {
     runtime="${TAYN_RUNTIME:$TAYN_DEFAULT_RUNTIME}"
+    echo $runtime
+}
+
+function tayn_get_id {
+    runtime=$(tayn_get_runtime)
     num="$1"
     id=$($runtime ps -aq | head -$num | tail -1)
     echo $id
 }
 
 function tayn_get_name {
-    runtime="${TAYN_RUNTIME:$TAYN_DEFAULT_RUNTIME}"
+    runtime=$(tayn_get_runtime)
     id="$1"
     name=$($runtime ps -a --format "table {{.ID}}\t{{.Names}}" | grep $id | awk '{printf $2}')
     echo $name
+}
+
+function tayn_ps {
+    runtime=$(tayn_get_runtime)
+    $runtime ps -a --format "table {{.Names}}\t{{.Status}}" | awk '{printf "[%2s] ",NR-1}{print $0}'
 }
 
 function tayn {
@@ -52,13 +62,13 @@ function tayn {
     fi
 
     # List all containers
-    if [[ "$cmd" == "p" ]]; then
-        $runtime ps -a --format "table {{.Names}}\t{{.Status}}" | awk '{printf "[%2s] ",NR-1}{print $0}'
+    if [[ "$cmd" == "p" || "$cmd" == "ps" ]]; then
+        tayn_ps
         return
     fi
     
     # Restart one or more containers
-    if [[ "$cmd" == "r" ]]; then
+    if [[ "$cmd" == "r" || "$cmd" == "restart" ]]; then
         for num in "${args[@]}";
         do
             id=$(tayn_get_id $num)
@@ -70,7 +80,7 @@ function tayn {
     fi
     
     # Stop one or more containers
-    if [[ "$cmd" == "s" ]]; then
+    if [[ "$cmd" == "s" || "$cmd" == "stop" ]]; then
         for num in "${args[@]}";
         do
             id=$(tayn_get_id $num)
@@ -82,7 +92,7 @@ function tayn {
     fi
 
     # Delete one or more containers
-    if [[ "$cmd" == "d" ]]; then
+    if [[ "$cmd" == "d" || "$cmd" == "delete" ]]; then
         for num in "${args[@]}";
         do
             id=$(tayn_get_id $num)
@@ -94,7 +104,7 @@ function tayn {
     fi
 
     # Run interactive command in container
-    if [[ "$cmd" == "e" ]]; then
+    if [[ "$cmd" == "e" || "$cmd" == "session" ]]; then
         id=$(tayn_get_id $arg)
         name=$(tayn_get_name $id)
         echo "Running '${@:3}' in $name [$id]"
@@ -103,7 +113,7 @@ function tayn {
     fi
 
     # Run detached command in container
-    if [[ "$cmd" == "x" ]]; then
+    if [[ "$cmd" == "x" || "$cmd" == "exec" ]]; then
         id=$(tayn_get_id $arg)
         name=$(tayn_get_name $id)
         echo "Running '${@:3}' in $name [$id]"
@@ -112,14 +122,14 @@ function tayn {
     fi
 
     # Show logs for a container
-    if [[ "$cmd" == "l" ]]; then
+    if [[ "$cmd" == "l" || "$cmd" == "logs" ]]; then
         id=$(tayn_get_id $arg)
         $runtime logs $id
         return
     fi
 
     # List images
-    if [[ "$cmd" == "i" ]]; then
+    if [[ "$cmd" == "i" || "$cmd" == "image" ]]; then
         if [[ "$arg_count" -eq 0 ]]; then
             $runtime images --format "table {{.Size}}\t{{.CreatedSince}}\t{{.Tag}}\t{{.Repository}}"
             return
