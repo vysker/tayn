@@ -2,9 +2,7 @@
 
 export TAYN_DEFAULT_RUNTIME="docker"
 
-function tayn_print_help {
-    echo "\nUsage: tayn [command] [arguments]"
-    echo "\nErgonomic container manager\n"
+function tayn_print_commands {
     echo "Command|Description|Usage
   p, ps|List all containers|'tayn p'
   r, restart|Restart one or more containers|'tayn r 1' or 'tayn r 3 2 1'
@@ -14,7 +12,13 @@ function tayn_print_help {
   x, exec|Run detached command in container|'tayn x 2 touch /tmp/abc'
   l, logs|Show logs for container|'tayn l 5'
   i, image|List images|'tayn i'
-    " | column --table -s "|"
+" | column --table -s "|"
+}
+
+function tayn_print_help {
+    echo "\nUsage: tayn [command] [arguments]"
+    echo "\nErgonomic container manager\n"
+    tayn_print_commands
     echo "\nExamples"
     echo "  'tayn s 1 2 5' stops 1st, 2nd and 5th docker container listed in 'tayn p'"
 }
@@ -44,22 +48,40 @@ function tayn_ps {
 }
 
 function tayn {
-    if [[ $# -eq 0 || $1 == "help" || $1 == "--help" || $1 == "-h" ]]; then
+    # Resetting variables is necessary because zsh remembers
+    cmd=
+    args=
+    arg_count=
+    args_array=
+    runtime="${TAYN_RUNTIME:=$TAYN_DEFAULT_RUNTIME}"
+
+    if [[ $1 == "help" || $1 == "--help" || $1 == "-h" ]]; then
         tayn_print_help
         return
     fi
 
-    cmd="$1"
-    arg="$2"
-    runtime="${TAYN_RUNTIME:=$TAYN_DEFAULT_RUNTIME}"
+    if [[ $# -eq 0 ]]; then
+        tayn_print_commands
+        echo ""
+        vared -p "Choose a command (p/r/s/d/e/x/l/i): " -c cmd
+        echo ""
+
+        if [[ "$cmd" == "p" || "$cmd" == "i" ]]; then
+        else
+            # TODO: Store the result of "ps" and use it when executing commands, because the result of "ps" can change while the user is selecting containers
+            tayn_ps
+            echo ""
+            vared -p "Select containers: " -c args
+            echo ""
+        fi
+    else
+        cmd="$1"
+        args="${@:2}" # Use args from $2 onwards
+    fi
 
     # Split extra args into an array
-    arg_count=$(($# - 1))
-    if [[ $arg_count -gt 0 ]]; then
-        args_raw="${@:2}" # Use args from $2 onwards
-        IFS=' ' # Split on space
-        read -rA args <<< "$args_raw" # Read into array variable called "args"
-    fi
+    IFS=' ' # Split on space
+    read -rA args_array <<< "$args" # Read into array variable called "args_array"
 
     # List all containers
     if [[ "$cmd" == "p" || "$cmd" == "ps" ]]; then
@@ -69,7 +91,7 @@ function tayn {
     
     # Restart one or more containers
     if [[ "$cmd" == "r" || "$cmd" == "restart" ]]; then
-        for num in "${args[@]}";
+        for num in "${args_array[@]}";
         do
             id=$(tayn_get_id $num)
             name=$(tayn_get_name $id)
@@ -81,7 +103,7 @@ function tayn {
     
     # Stop one or more containers
     if [[ "$cmd" == "s" || "$cmd" == "stop" ]]; then
-        for num in "${args[@]}";
+        for num in "${args_array[@]}";
         do
             id=$(tayn_get_id $num)
             name=$(tayn_get_name $id)
@@ -93,7 +115,7 @@ function tayn {
 
     # Delete one or more containers
     if [[ "$cmd" == "d" || "$cmd" == "delete" ]]; then
-        for num in "${args[@]}";
+        for num in "${args_array[@]}";
         do
             id=$(tayn_get_id $num)
             name=$(tayn_get_name $id)
@@ -105,7 +127,7 @@ function tayn {
 
     # Run interactive command in container
     if [[ "$cmd" == "e" || "$cmd" == "session" ]]; then
-        id=$(tayn_get_id $arg)
+        id=$(tayn_get_id $args)
         name=$(tayn_get_name $id)
         echo "Running '${@:3}' in $name [$id]"
         $runtime exec -it $id ${@:3}
@@ -114,7 +136,7 @@ function tayn {
 
     # Run detached command in container
     if [[ "$cmd" == "x" || "$cmd" == "exec" ]]; then
-        id=$(tayn_get_id $arg)
+        id=$(tayn_get_id $args)
         name=$(tayn_get_name $id)
         echo "Running '${@:3}' in $name [$id]"
         $runtime exec -d $id ${@:3}
@@ -123,7 +145,7 @@ function tayn {
 
     # Show logs for a container
     if [[ "$cmd" == "l" || "$cmd" == "logs" ]]; then
-        id=$(tayn_get_id $arg)
+        id=$(tayn_get_id $args)
         $runtime logs $id
         return
     fi
