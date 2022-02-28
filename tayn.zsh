@@ -5,7 +5,7 @@ export TAYN_DEFAULT_RUNTIME="docker"
 function tayn_print_compose_commands {
     echo "Command|Description|Usage
   p, ps|List all services|'tayn c p'
-  u, up|Run any or all services|'tayn c u' or 'tayn c u redis postgres'
+  u, up|Run any or all services|'tayn c u' or 'tayn c u redis 2 postgres'
   s, stop|Stop any or all services|'tayn c s' or 'tayn c s redis'
 " | column --table -s "|"
 }
@@ -38,6 +38,18 @@ function tayn_get_runtime {
     echo $runtime
 }
 
+function tayn_compose_ps {
+    docker-compose ps | awk -F' {2,}' '{printf "[%2s] %s|%s\n",NR-1,$3,$4}' | column --table -s "|"
+}
+
+function tayn_compose_get_service {
+    num="$1"
+    # 'grep "$num]"', because we list our docker services with "[ 1]"
+    # 'cut -c 5-', because we want to cut off the "[ 1]" part (cut==substring)
+    service=$(tayn_compose_ps | grep "$num]" | cut -c 5- | awk '{print $1}')
+    echo $service
+}
+
 function tayn_get_id {
     runtime=$(tayn_get_runtime)
     num="$1"
@@ -60,9 +72,11 @@ function tayn_ps {
 function tayn {
     # Resetting variables is necessary because zsh remembers
     cmd=
+    arg=
     args=
     arg_count=
     args_array=
+    service=
     runtime="${TAYN_RUNTIME:=$TAYN_DEFAULT_RUNTIME}"
 
     if [[ $1 == "help" || $1 == "--help" || $1 == "-h" ]]; then
@@ -163,20 +177,43 @@ function tayn {
     # Docker compose
     if [[ "$cmd" == "c" || "$cmd" == "compose" ]]; then
         dc_cmd="$2" # Docker compose command
-        if [[ "$dc_cmd" == "help" || "$dc_cmd" == "--help" || "$dc_cmd" == "-h" ]]; then
+        if [[ "$#" -lt 2 || "$dc_cmd" == "help" || "$dc_cmd" == "--help" || "$dc_cmd" == "-h" ]]; then
             tayn_print_compose_commands
             return
         fi
         if [[ "$dc_cmd" == "p" || "$dc_cmd" == "ps" ]]; then
-            docker-compose ps
+            # awk -F' {2,}' means: 'only split on 2 or more spaces'
+            docker-compose ps | awk -F' {2,}' '{printf "[%2s] %s|%s\n",NR-1,$3,$4}' | column --table -s "|"
             return
         fi
+
         if [[ "$dc_cmd" == "u" || "$dc_cmd" == "up" ]]; then
-            docker-compose up ${@:3} -d
+            for arg in "${@:3}";
+            do
+                # If the argument is a string, simply run 'docker-compose up' with that service name.
+                # If the argument is a number, look up the corresponding service name first.
+                # That way, we can mix our commands like this: 'tayn c u redis 2 postgres'
+                case $arg in
+                    (*[!0-9]*'') docker-compose up $arg -d;;
+                    (*) service=$(tayn_compose_get_service $arg); docker-compose up $service -d;;
+                esac
+            done
+            # docker-compose up ${@:3} -d
             return
         fi
+
         if [[ "$dc_cmd" == "s" || "$dc_cmd" == "stop" ]]; then
-            docker-compose stop ${@:3}
+            for arg in "${@:3}";
+            do
+                # If the argument is a string, simply run 'docker-compose stop' with that service name.
+                # If the argument is a number, look up the corresponding service name first.
+                # That way, we can mix our commands like this: 'tayn c s redis 2 postgres'
+                case $arg in
+                    (*[!0-9]*'') docker-compose stop $arg -d;;
+                    (*) service=$(tayn_compose_get_service $arg); docker-compose stop $service -d;;
+                esac
+            done
+            # docker-compose stop ${@:3}
             return
         fi
         echo "tayn: '$dc_cmd' is not a docker-compose command.\nSee 'tayn help'"
