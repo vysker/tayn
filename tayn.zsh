@@ -69,6 +69,61 @@ function tayn_ps {
     $runtime ps -a --format "table {{.Names}}\t{{.Status}}" | awk '{printf "[%2s] ",NR-1}{print $0}'
 }
 
+# Docker compose
+function tayn_compose {
+    cmd="$2" # Docker compose command
+
+    if [[ "$#" -lt 2 || "$cmd" == "help" || "$cmd" == "--help" || "$cmd" == "-h" ]]; then
+        tayn_print_compose_commands
+        return
+    fi
+
+    if [[ "$cmd" == "p" || "$cmd" == "ps" ]]; then
+        # awk -F' {2,}' means: 'only split on 2 or more spaces'
+        docker-compose ps | awk -F' {2,}' '{printf "[%2s] %s|%s\n",NR-1,$3,$4}' | column --table -s "|"
+        return
+    fi
+
+    if [[ "$cmd" == "u" || "$cmd" == "up" ]]; then
+        for arg in "${@:3}";
+        do
+            # If the argument is a string, simply run 'docker-compose up' with that service name.
+            # If the argument is a number, look up the corresponding service name first.
+            # That way, we can mix our commands like this: 'tayn c u redis 2 postgres'
+            case $arg in
+                (*[!0-9]*'') docker-compose up $arg -d;;
+                (*) service=$(tayn_compose_get_service $arg); docker-compose up $service -d;;
+            esac
+        done
+        if [[ -z "${@:3}" ]]; then
+            docker-compose up -d
+        fi
+        # docker-compose up ${@:3} -d
+        return
+    fi
+
+    if [[ "$cmd" == "s" || "$cmd" == "stop" ]]; then
+        for arg in "${@:3}";
+        do
+            # If the argument is a string, simply run 'docker-compose stop' with that service name.
+            # If the argument is a number, look up the corresponding service name first.
+            # That way, we can mix our commands like this: 'tayn c s redis 2 postgres'
+            case $arg in
+                (*[!0-9]*'') docker-compose stop $arg;;
+                (*) service=$(tayn_compose_get_service $arg); docker-compose stop $service;;
+            esac
+        done
+        if [[ -z "${@:3}" ]]; then
+            docker-compose stop
+        fi
+        # docker-compose stop ${@:3}
+        return
+    fi
+
+    echo "tayn: '$cmd' is not a docker-compose command.\nSee 'tayn help'"
+    return
+}
+
 function tayn {
     # Resetting variables is necessary because zsh remembers
     cmd=
@@ -174,49 +229,8 @@ function tayn {
         return
     fi
 
-    # Docker compose
     if [[ "$cmd" == "c" || "$cmd" == "compose" ]]; then
-        dc_cmd="$2" # Docker compose command
-        if [[ "$#" -lt 2 || "$dc_cmd" == "help" || "$dc_cmd" == "--help" || "$dc_cmd" == "-h" ]]; then
-            tayn_print_compose_commands
-            return
-        fi
-        if [[ "$dc_cmd" == "p" || "$dc_cmd" == "ps" ]]; then
-            # awk -F' {2,}' means: 'only split on 2 or more spaces'
-            docker-compose ps | awk -F' {2,}' '{printf "[%2s] %s|%s\n",NR-1,$3,$4}' | column --table -s "|"
-            return
-        fi
-
-        if [[ "$dc_cmd" == "u" || "$dc_cmd" == "up" ]]; then
-            for arg in "${@:3}";
-            do
-                # If the argument is a string, simply run 'docker-compose up' with that service name.
-                # If the argument is a number, look up the corresponding service name first.
-                # That way, we can mix our commands like this: 'tayn c u redis 2 postgres'
-                case $arg in
-                    (*[!0-9]*'') docker-compose up $arg -d;;
-                    (*) service=$(tayn_compose_get_service $arg); docker-compose up $service -d;;
-                esac
-            done
-            # docker-compose up ${@:3} -d
-            return
-        fi
-
-        if [[ "$dc_cmd" == "s" || "$dc_cmd" == "stop" ]]; then
-            for arg in "${@:3}";
-            do
-                # If the argument is a string, simply run 'docker-compose stop' with that service name.
-                # If the argument is a number, look up the corresponding service name first.
-                # That way, we can mix our commands like this: 'tayn c s redis 2 postgres'
-                case $arg in
-                    (*[!0-9]*'') docker-compose stop $arg -d;;
-                    (*) service=$(tayn_compose_get_service $arg); docker-compose stop $service -d;;
-                esac
-            done
-            # docker-compose stop ${@:3}
-            return
-        fi
-        echo "tayn: '$dc_cmd' is not a docker-compose command.\nSee 'tayn help'"
+        tayn_compose $@
         return
     fi
 
