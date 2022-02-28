@@ -2,6 +2,14 @@
 
 export TAYN_DEFAULT_RUNTIME="docker"
 
+function tayn_print_compose_commands {
+    echo "Command|Description|Usage
+  p, ps|List all services|'tayn c p'
+  u, up|Run any or all services|'tayn c u' or 'tayn c u redis postgres'
+  s, stop|Stop any or all services|'tayn c s' or 'tayn c s redis'
+" | column --table -s "|"
+}
+
 function tayn_print_commands {
     echo "Command|Description|Usage
   p, ps|List all containers|'tayn p'
@@ -11,6 +19,8 @@ function tayn_print_commands {
   e, session|Run interactive command in container|'tayn e 2 sh'
   x, exec|Run detached command in container|'tayn x 2 touch /tmp/abc'
   l, logs|Show logs for container|'tayn l 5'
+  c, compose|Run docker compose commands|'tayn c help'
+  t, top|Show stats|'tayn t'
   i, image|List images|'tayn i'
 " | column --table -s "|"
 }
@@ -150,6 +160,29 @@ function tayn {
         return
     fi
 
+    # Docker compose
+    if [[ "$cmd" == "c" || "$cmd" == "compose" ]]; then
+        dc_cmd="$2" # Docker compose command
+        if [[ "$dc_cmd" == "help" || "$dc_cmd" == "--help" || "$dc_cmd" == "-h" ]]; then
+            tayn_print_compose_commands
+            return
+        fi
+        if [[ "$dc_cmd" == "p" || "$dc_cmd" == "ps" ]]; then
+            docker-compose ps
+            return
+        fi
+        if [[ "$dc_cmd" == "u" || "$dc_cmd" == "up" ]]; then
+            docker-compose up ${@:3} -d
+            return
+        fi
+        if [[ "$dc_cmd" == "s" || "$dc_cmd" == "stop" ]]; then
+            docker-compose stop ${@:3}
+            return
+        fi
+        echo "tayn: '$dc_cmd' is not a docker-compose command.\nSee 'tayn help'"
+        return
+    fi
+
     # List images
     if [[ "$cmd" == "i" || "$cmd" == "image" ]]; then
         if [[ "$arg_count" -eq 0 ]]; then
@@ -158,6 +191,13 @@ function tayn {
         fi
         return
     fi
+
+    # Show stats
+    if [[ "$cmd" == "t" || "$cmd" == "top" ]]; then
+        $runtime stats
+        return
+    fi
+
 
     echo "tayn: '$cmd' is not a tayn command.\nSee 'tayn help'"
 }
