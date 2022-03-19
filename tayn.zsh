@@ -170,37 +170,49 @@ function tayn {
     
     # Restart one or more containers
     if [[ "$cmd" == "r" || "$cmd" == "restart" ]]; then
+        echo "Restarting:"
+        ids=()
         for num in "${args_array[@]}";
         do
             id=$(tayn_get_id $num)
             name=$(tayn_get_name $id)
-            echo "Restarting $id $name"
-            $runtime restart $id
+            echo "- $id: $name"
+            ids+=($id)
         done
+        echo ""
+        $runtime restart "${ids[@]}"
         return
     fi
     
     # Stop one or more containers
     if [[ "$cmd" == "s" || "$cmd" == "stop" ]]; then
+        echo "Stopping:"
+        ids=()
         for num in "${args_array[@]}";
         do
             id=$(tayn_get_id $num)
             name=$(tayn_get_name $id)
-            echo "Stopping $name [$id]"
-            $runtime stop $id
+            echo "- $id: $name"
+            ids+=($id)
         done
+        echo ""
+        $runtime stop "$ids"
         return
     fi
 
     # Delete one or more containers
     if [[ "$cmd" == "d" || "$cmd" == "delete" ]]; then
+        echo "Deleting:"
+        ids=()
         for num in "${args_array[@]}";
         do
             id=$(tayn_get_id $num)
             name=$(tayn_get_name $id)
-            echo "Deleting $name [$id]"
-            $runtime rm $id
+            echo "- $id: $name"
+            ids+=($id)
         done
+        echo ""
+        $runtime rm "$ids"
         return
     fi
 
@@ -208,7 +220,7 @@ function tayn {
     if [[ "$cmd" == "e" || "$cmd" == "session" ]]; then
         id=$(tayn_get_id $2)
         name=$(tayn_get_name $id)
-        echo "Running '${@:3}' in $name [$id]"
+        echo "Running '${@:3}' in $id: $name"
         $runtime exec -it $id ${@:3}
         return
     fi
@@ -217,7 +229,7 @@ function tayn {
     if [[ "$cmd" == "x" || "$cmd" == "exec" ]]; then
         id=$(tayn_get_id $2)
         name=$(tayn_get_name $id)
-        echo "Running '${@:3}' in $name [$id]"
+        echo "Running '${@:3}' in $id: $name"
         $runtime exec -d $id ${@:3}
         return
     fi
