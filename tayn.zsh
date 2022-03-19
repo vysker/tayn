@@ -206,7 +206,7 @@ function tayn {
 
     # Run interactive command in container
     if [[ "$cmd" == "e" || "$cmd" == "session" ]]; then
-        id=$(tayn_get_id $args)
+        id=$(tayn_get_id $2)
         name=$(tayn_get_name $id)
         echo "Running '${@:3}' in $name [$id]"
         $runtime exec -it $id ${@:3}
@@ -215,7 +215,7 @@ function tayn {
 
     # Run detached command in container
     if [[ "$cmd" == "x" || "$cmd" == "exec" ]]; then
-        id=$(tayn_get_id $args)
+        id=$(tayn_get_id $2)
         name=$(tayn_get_name $id)
         echo "Running '${@:3}' in $name [$id]"
         $runtime exec -d $id ${@:3}
