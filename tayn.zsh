@@ -249,7 +249,7 @@ function tayn {
     # List images
     if [[ "$cmd" == "i" || "$cmd" == "image" ]]; then
         if [[ "$arg_count" -eq 0 ]]; then
-            $runtime images --format "table {{.Size}}\t{{.CreatedSince}}\t{{.Tag}}\t{{.Repository}}"
+            $runtime images --format "table {{.Size}}\t{{.CreatedSince}}\t{{.Tag}}\t{{.Repository}}\t{{.ID}}"
             return
         fi
         return
